@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四大鼠王下班準備</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6; /* Tailwind gray-100 */
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 100;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 0.5rem;
+            text-align: center;
+            position: relative;
+        }
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .loading-spinner { /* For general page/modal loading */
+            border: 4px solid #f3f3f3; 
+            border-top: 4px solid #3498db; 
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        .button-loading .loading-spinner-small { /* For buttons */
+            width: 16px;
+            height: 16px;
+            border-width: 2px;
+            border-style: solid;
+            border-color: transparent; /* Transparent base */
+            border-top-color: currentColor; /* Use button's text color for spinner top */
+            border-radius: 50%;
+            display: inline-block; 
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+        .note-suggestion-item {
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border: 1px solid #e5e7eb; 
+            border-radius: 0.375rem; 
+            cursor: pointer;
+            text-align: left;
+            background-color: #f9fafb; 
+        }
+        .note-suggestion-item:hover {
+            background-color: #f3f4f6; 
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8 max-w-5xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-gray-700">四大鼠王下班準備</h1>
+            <p class="text-sm text-gray-500 mt-2">App ID: <span id="appIdDisplay"></span> | User ID: <span id="userIdDisplay"></span></p>
+        </header>
+
+        <div id="messageArea" class="mb-4 p-3 rounded-md text-sm hidden"></div>
+
+        <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-700">記錄下班時間</h2>
+            <form id="leaveForm" class="space-y-6">
+                <div>
+                    <label for="teamMember" class="block text-sm font-medium text-gray-700 mb-1">團隊成員</label>
+                    <select id="teamMember" name="teamMember" required class="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="DK0">DK0</option>
+                        <option value="DKBS">DKBS</option>
+                        <option value="RPDSH">RPDSH</option>
+                        <option value="RPGJS">RPGJS</option>
+                    </select>
+                </div>
+                
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                    <div class="sm:col-span-1">
+                        <label for="entryDate" class="block text-sm font-medium text-gray-700 mb-1">日期</label>
+                        <input type="date" id="entryDate" name="entryDate" required class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="sm:col-span-1">
+                        <label for="clockOutTime" class="block text-sm font-medium text-gray-700 mb-1">下班時間</label>
+                        <input type="time" id="clockOutTime" name="clockOutTime" required class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="sm:col-span-1">
+                        <button type="button" id="refreshDateTimeButton" class="w-full mt-1 py-2 px-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-500 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400 flex items-center justify-center">
+                            🔄 更新為現在
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label for="notes" class="block text-sm font-medium text-gray-700">備註 (可選)</label>
+                        <button type="button" id="getNoteSuggestionButton" class="text-xs py-1 px-2 bg-teal-500 hover:bg-teal-600 text-white rounded-md shadow-sm flex items-center disabled:opacity-50">
+                            <span>💡 備註建議</span>
+                        </button>
+                    </div>
+                    <textarea id="notes" name="notes" rows="3" class="mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="例如：加班晚走原因..."></textarea>
+                </div>
+                <div>
+                    <button type="submit" id="submitButton" class="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50">
+                        <span>記錄時間</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="bg-white p-6 rounded-lg shadow-lg mb-8">
+            <h2 class="text-2xl font-semibold mb-6 text-gray-700">✨ 鼠王摸魚小工具 ✨</h2>
+            <div class="space-y-4">
+                <button id="getExcuseButton" class="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-500 hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-400 disabled:opacity-50">
+                    <span>👑 賜我下班神藉口！</span>
+                </button>
+                </div>
+        </section>
+
+        <section class="bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                <h2 class="text-2xl font-semibold text-gray-700 mb-3 sm:mb-0">下班時間記錄</h2>
+                <button id="overallReviewButton" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md shadow-sm text-sm font-medium flex items-center justify-center disabled:opacity-50">
+                    <span>✨ 獲取近期表現總評</span>
+                </button>
+            </div>
+            <div id="loadingEntries" class="text-center py-4">
+                <div class="loading-spinner"></div>
+                <p class="text-sm text-gray-500 mt-2">載入記錄中...</p>
+            </div>
+            <div id="noEntries" class="text-center py-4 text-gray-500 hidden">目前沒有記錄。</div>
+            <div class="overflow-x-auto">
+                <table id="leaveTable" class="min-w-full divide-y divide-gray-200 hidden">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">日期</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">團隊成員</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">下班時間</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">備註</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">鼠王建議 ✨</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaveList" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeConfirmationModal()">&times;</span>
+            <h3 id="modalTitle" class="text-lg font-medium leading-6 text-gray-900 mb-2">確認操作</h3>
+            <p id="modalMessage" class="text-sm text-gray-500 mb-4">您確定嗎？</p>
+            <div class="mt-4 flex justify-end space-x-3">
+                <button id="modalCancelButton" type="button" class="inline-flex justify-center rounded-md border border-gray-300 px-4 py-2 bg-white text-base font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
+                    取消
+                </button>
+                <button id="modalConfirmButton" type="button" class="inline-flex justify-center rounded-md border border-transparent px-4 py-2 bg-red-600 text-base font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:text-sm">
+                    確認
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="suggestionModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeSuggestionModal()">&times;</span>
+            <h3 id="suggestionModalTitle" class="text-xl font-semibold text-indigo-600 mb-4">✨ 鼠王給你的建議 ✨</h3>
+            <div id="suggestionLoading" class="my-4">
+                <div class="loading-spinner"></div>
+                <p class="text-sm text-gray-500 mt-2">鼠王正在思考中...</p>
+            </div>
+            <div id="suggestionText" class="text-gray-700 text-lg" style="white-space: pre-wrap;"></div>
+            <button id="closeSuggestionButton" type="button" class="mt-6 inline-flex justify-center rounded-md border border-transparent px-4 py-2 bg-indigo-600 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:text-sm">
+                朕知道了
+            </button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        document.getElementById('appIdDisplay').textContent = appId;
+
+        let app;
+        let auth;
+        let db;
+        let currentUserId = null; 
+        let clockOutCollectionRef;
+        let unsubscribeClockOutListener = null;
+        let allFetchedEntries = []; 
+
+        const leaveForm = document.getElementById('leaveForm');
+        const entryDateInput = document.getElementById('entryDate');
+        const clockOutTimeInput = document.getElementById('clockOutTime');
+        const notesInput = document.getElementById('notes');
+        const refreshDateTimeButton = document.getElementById('refreshDateTimeButton');
+        const getNoteSuggestionButton = document.getElementById('getNoteSuggestionButton');
+        const getExcuseButton = document.getElementById('getExcuseButton'); // New button
+        const submitButton = document.getElementById('submitButton');
+        const leaveList = document.getElementById('leaveList');
+        const loadingEntries = document.getElementById('loadingEntries');
+        const noEntries = document.getElementById('noEntries');
+        const leaveTable = document.getElementById('leaveTable');
+        const messageArea = document.getElementById('messageArea');
+        const userIdDisplay = document.getElementById('userIdDisplay');
+        const overallReviewButton = document.getElementById('overallReviewButton');
+
+        const confirmationModal = document.getElementById('confirmationModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalConfirmButton = document.getElementById('modalConfirmButton');
+        const modalCancelButton = document.getElementById('modalCancelButton');
+        let confirmActionCallback = null;
+
+        const suggestionModal = document.getElementById('suggestionModal');
+        const suggestionModalTitle = document.getElementById('suggestionModalTitle');
+        const suggestionText = document.getElementById('suggestionText');
+        const suggestionLoading = document.getElementById('suggestionLoading');
+        const closeSuggestionButton = document.getElementById('closeSuggestionButton');
+        
+        function showMessage(message, type = 'success') {
+            messageArea.textContent = message;
+            messageArea.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'bg-yellow-100', 'text-yellow-700');
+            if (type === 'success') messageArea.classList.add('bg-green-100', 'text-green-700');
+            else if (type === 'error') messageArea.classList.add('bg-red-100', 'text-red-700');
+            else if (type === 'warning') messageArea.classList.add('bg-yellow-100', 'text-yellow-700');
+            messageArea.classList.remove('hidden');
+            setTimeout(() => messageArea.classList.add('hidden'), 5000);
+        }
+
+        function openConfirmationModal(title, message, onConfirm) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            confirmActionCallback = onConfirm;
+            confirmationModal.style.display = 'block';
+        }
+
+        window.closeConfirmationModal = function() {
+            confirmationModal.style.display = 'none';
+            confirmActionCallback = null;
+        }
+
+        modalCancelButton.onclick = window.closeConfirmationModal;
+        modalConfirmButton.onclick = () => {
+            if (confirmActionCallback) confirmActionCallback();
+            window.closeConfirmationModal();
+        };
+        
+        function openSuggestionModal(modalType = 'individual') { 
+            suggestionText.innerHTML = ''; 
+            suggestionLoading.style.display = 'block';
+            closeSuggestionButton.classList.remove('hidden'); 
+
+            if (modalType === 'overall') {
+                suggestionModalTitle.textContent = '✨ 鼠王近期表現總評 ✨';
+            } else if (modalType === 'note') {
+                suggestionModalTitle.textContent = '✨ 鼠王備註靈感 ✨';
+            } else if (modalType === 'excuse') { // New modal type
+                suggestionModalTitle.textContent = '✨ 鼠王脫逃密技 ✨';
+            } else { 
+                suggestionModalTitle.textContent = '✨ 鼠王給你的建議 ✨';
+            }
+            suggestionModal.style.display = 'block';
+        }
+
+        window.closeSuggestionModal = function() {
+            suggestionModal.style.display = 'none';
+        }
+        closeSuggestionButton.onclick = window.closeSuggestionModal;
+
+        window.onclick = (event) => { 
+            if (event.target == confirmationModal) window.closeConfirmationModal();
+            if (event.target == suggestionModal) window.closeSuggestionModal();
+        };
+
+        function setCurrentDateTime() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = (now.getMonth() + 1).toString().padStart(2, '0');
+            const day = now.getDate().toString().padStart(2, '0');
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+
+            entryDateInput.value = `${year}-${month}-${day}`;
+            clockOutTimeInput.value = `${hours}:${minutes}`;
+        }
+        
+        refreshDateTimeButton.addEventListener('click', setCurrentDateTime);
+
+        async function initializeFirebaseServices() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    showMessage("Firebase 設定缺失，應用程式無法連接到資料庫。", "error");
+                    console.error("Firebase configuration is missing.");
+                    loadingEntries.textContent = "錯誤：Firebase 設定缺失。";
+                    return;
+                }
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                setLogLevel('debug'); 
+                const collectionPath = `artifacts/${appId}/public/data/clockOutEntries`; 
+                clockOutCollectionRef = collection(db, collectionPath);
+                console.log("使用 Firestore 集合:", collectionPath);
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUserId = user.uid;
+                        userIdDisplay.textContent = currentUserId;
+                        console.log("用戶已通過 UID 驗證:", currentUserId);
+                        fetchAndDisplayEntries();
+                    } else {
+                        currentUserId = crypto.randomUUID(); 
+                        userIdDisplay.textContent = `${currentUserId} (匿名)`;
+                        console.log("用戶未經驗證，使用匿名 ID:", currentUserId);
+                        if (initialAuthToken) {
+                            signInWithCustomToken(auth, initialAuthToken)
+                                .catch((error) => {
+                                    console.error("使用自訂令牌登入時發生錯誤:", error);
+                                    signInAnonymously(auth).catch(err => console.error("令牌失敗後匿名登入時發生錯誤:", err));
+                                });
+                        } else {
+                            signInAnonymously(auth).catch(err => console.error("匿名登入時發生錯誤:", err));
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("初始化 Firebase 時發生錯誤:", error);
+                showMessage("初始化應用程式服務時發生錯誤。請稍後再試。", "error");
+                loadingEntries.textContent = "初始化錯誤，請檢查控制台。";
+            }
+        }
+
+        async function addEntry(teamMember, entryDate, clockOutTime, notes) {
+            if (!db || !clockOutCollectionRef) {
+                showMessage("資料庫未初始化，無法新增記錄。", "error"); return;
+            }
+            if (!currentUserId) {
+                showMessage("用戶未經驗證，無法新增記錄。", "error"); return;
+            }
+            submitButton.disabled = true;
+            submitButton.classList.add('button-loading');
+            if (!submitButton.dataset.originalContent) {
+                submitButton.dataset.originalContent = submitButton.innerHTML;
+            }
+            submitButton.innerHTML = `<div class="loading-spinner-small"></div><span>記錄中...</span>`;
+
+            try {
+                const newEntry = { teamMember, entryDate, clockOutTime, notes, createdAt: serverTimestamp(), addedBy: currentUserId };
+                await addDoc(clockOutCollectionRef, newEntry);
+                showMessage("下班時間已成功記錄！", "success");
+                leaveForm.reset(); 
+                setCurrentDateTime(); 
+            } catch (error) {
+                console.error("新增下班時間記錄時發生錯誤:", error);
+                showMessage("新增下班時間記錄失敗。請再試一次。" + error.message, "error");
+            } finally {
+                submitButton.disabled = false;
+                submitButton.classList.remove('button-loading');
+                submitButton.innerHTML = submitButton.dataset.originalContent || `<span>記錄時間</span>`;
+            }
+        }
+        
+        function fetchAndDisplayEntries() {
+            if (!db || !clockOutCollectionRef) {
+                console.error("Firestore not initialized in fetchAndDisplayEntries");
+                loadingEntries.classList.remove('hidden');
+                loadingEntries.textContent = "資料庫連接尚未就緒。"; return;
+            }
+            if (!currentUserId) {
+                console.warn("用戶尚未驗證，延遲獲取。"); return;
+            }
+
+            loadingEntries.classList.remove('hidden');
+            noEntries.classList.add('hidden');
+            leaveTable.classList.add('hidden');
+            leaveList.innerHTML = ''; 
+
+            const q = query(clockOutCollectionRef, orderBy("entryDate", "desc"));
+
+            if (unsubscribeClockOutListener) unsubscribeClockOutListener();
+
+            unsubscribeClockOutListener = onSnapshot(q, (querySnapshot) => {
+                loadingEntries.classList.add('hidden');
+                allFetchedEntries = []; 
+                querySnapshot.forEach((doc) => {
+                    allFetchedEntries.push({ id: doc.id, ...doc.data() });
+                });
+
+                allFetchedEntries.sort((a, b) => {
+                    if (a.entryDate > b.entryDate) return -1; if (a.entryDate < b.entryDate) return 1;
+                    if (a.clockOutTime && b.clockOutTime) { if (a.clockOutTime > b.clockOutTime) return -1; if (a.clockOutTime < b.clockOutTime) return 1; }
+                    else if (a.clockOutTime) return -1; else if (b.clockOutTime) return 1;  
+                    if (a.createdAt && b.createdAt) return b.createdAt.toMillis() - a.createdAt.toMillis();
+                    else if (a.createdAt) return -1; else if (b.createdAt) return 1;
+                    return 0;
+                });
+
+                if (allFetchedEntries.length === 0) {
+                    noEntries.classList.remove('hidden');
+                    leaveTable.classList.add('hidden');
+                    overallReviewButton.disabled = true; 
+                } else {
+                    noEntries.classList.add('hidden');
+                    leaveTable.classList.remove('hidden');
+                    renderEntries(allFetchedEntries);
+                    overallReviewButton.disabled = false;
+                }
+            }, (error) => {
+                console.error("獲取下班時間記錄時發生錯誤:", error);
+                showMessage("獲取下班時間記錄時發生錯誤: " + error.message, "error");
+                loadingEntries.classList.add('hidden');
+                noEntries.textContent = "載入記錄時發生錯誤。";
+                noEntries.classList.remove('hidden');
+                overallReviewButton.disabled = true;
+            });
+            console.log("已附加新的 Firestore 監聽器。");
+        }
+
+        function renderEntries(entriesToRender) {
+            leaveList.innerHTML = ''; 
+            entriesToRender.forEach(entry => {
+                const row = leaveList.insertRow();
+                row.insertCell().textContent = entry.entryDate; 
+                row.insertCell().textContent = entry.teamMember;
+                row.insertCell().textContent = entry.clockOutTime || '-'; 
+                
+                const notesCell = row.insertCell();
+                notesCell.textContent = entry.notes || '-';
+                notesCell.classList.add('text-sm', 'text-gray-500', 'max-w-[150px]'); 
+                if (entry.notes && entry.notes.length > 25) { 
+                    notesCell.title = entry.notes; 
+                    notesCell.textContent = entry.notes.substring(0, 25) + '...';
+                } else {
+                     notesCell.classList.add('truncate');
+                }
+                
+                const suggestionCell = row.insertCell();
+                const suggestionButtonId = `suggestBtn-${entry.id}`;
+                const suggestionButton = document.createElement('button');
+                suggestionButton.id = suggestionButtonId;
+                suggestionButton.innerHTML = `<span>💡</span>`;
+                suggestionButton.title = "獲取鼠王建議";
+                suggestionButton.classList.add('p-1', 'rounded-md', 'bg-yellow-400', 'hover:bg-yellow-500', 'text-white', 'text-xs', 'flex', 'items-center', 'justify-center');
+                suggestionButton.onclick = () => getClockOutSuggestion(entry.teamMember, entry.entryDate, entry.clockOutTime, entry.notes || '', suggestionButtonId);
+                suggestionCell.appendChild(suggestionButton);
+
+                const actionsCell = row.insertCell();
+                const deleteButton = document.createElement('button');
+                deleteButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500 hover:text-red-700" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
+                deleteButton.classList.add('p-1', 'rounded');
+                deleteButton.title = "刪除記錄";
+                deleteButton.onclick = () => openConfirmationModal('刪除下班記錄', `您確定要刪除 ${entry.teamMember} 於 ${entry.entryDate} 的下班記錄嗎？`, () => deleteEntry(entry.id));
+                actionsCell.appendChild(deleteButton);
+            });
+        }
+
+        async function deleteEntry(entryId) {
+            if (!db || !clockOutCollectionRef) {
+                showMessage("資料庫未初始化，無法刪除記錄。", "error"); return;
+            }
+            try {
+                const entryDocRef = doc(clockOutCollectionRef, entryId);
+                await deleteDoc(entryDocRef);
+                showMessage("記錄已成功刪除。", "success");
+            } catch (error) {
+                console.error("刪除記錄時發生錯誤:", error);
+                showMessage("刪除記錄失敗: " + error.message, "error");
+            }
+        }
+
+        async function callGeminiAPI(promptText, buttonElement, originalButtonHTML, modalType = 'individual') {
+            if (buttonElement) {
+                buttonElement.disabled = true;
+                buttonElement.classList.add('button-loading');
+                if (!buttonElement.dataset.originalContent) {
+                     buttonElement.dataset.originalContent = originalButtonHTML || buttonElement.innerHTML;
+                }
+                buttonElement.innerHTML = `<div class="loading-spinner-small"></div><span>思考中...</span>`;
+            }
+            
+            openSuggestionModal(modalType);
+
+            console.log("Gemini Prompt:", promptText);
+            try {
+                let chatHistory = [{ role: "user", parts: [{ text: promptText }] }];
+                const payload = { contents: chatHistory };
+                const apiKey = ""; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error("Gemini API Error Response:", errorData);
+                    throw new Error(`API 請求失敗，狀態碼：${response.status}. ${errorData?.error?.message || ''}`);
+                }
+                const result = await response.json();
+                console.log("Gemini API Raw Result:", result);
+
+                if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
+                    const generatedText = result.candidates[0].content.parts[0].text;
+                    if (modalType === 'note') {
+                        suggestionText.innerHTML = ''; 
+                        const suggestions = generatedText.split('\n').filter(s => s.trim() !== '');
+                        if (suggestions.length > 0) {
+                            suggestions.forEach(sText => {
+                                const suggItem = document.createElement('button');
+                                suggItem.textContent = sText;
+                                suggItem.classList.add('note-suggestion-item');
+                                suggItem.onclick = () => {
+                                    notesInput.value = sText;
+                                    closeSuggestionModal();
+                                };
+                                suggestionText.appendChild(suggItem);
+                            });
+                        } else {
+                             suggestionText.textContent = "鼠王暫時沒有備註靈感，請鼠王大人自行發揮～";
+                        }
+                    } else { // For 'individual', 'overall', 'excuse'
+                        suggestionText.textContent = generatedText;
+                    }
+                } else {
+                    console.error("Gemini API - 意外的回應結構:", result);
+                    suggestionText.textContent = "鼠王今天詞窮了，稍後再試吧！";
+                }
+            } catch (error) {
+                console.error("呼叫 Gemini API 時發生錯誤:", error);
+                suggestionText.textContent = "哎呀！鼠王建議系統暫時出了點小問題，請稍後再試。";
+                showMessage("無法獲取鼠王回覆：" + error.message, "error");
+            } finally {
+                suggestionLoading.style.display = 'none';
+                if (buttonElement) {
+                    buttonElement.disabled = false;
+                    buttonElement.classList.remove('button-loading');
+                    buttonElement.innerHTML = buttonElement.dataset.originalContent || originalButtonHTML; 
+                }
+            }
+        }
+
+        async function getClockOutSuggestion(teamMember, entryDate, clockOutTime, notes, buttonId) {
+            const suggestionButton = document.getElementById(buttonId);
+            const originalButtonHTML = `<span>💡</span>`; 
+            let promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。團隊成員 ${teamMember} 剛剛在 ${entryDate} 的 ${clockOutTime} 打卡下班。`;
+            if (notes && notes.trim() !== '') promptText += `他/她的下班備註是：「${notes}」。`;
+            else promptText += `他/她沒有留下備註。`;
+            promptText += `請根據這些資訊，用輕鬆幽默的鼠王風格，給 ${teamMember} 一句簡短的下班後的建議或打氣的話。請用繁體中文，並且不超過60個字。`;
+            
+            await callGeminiAPI(promptText, suggestionButton, originalButtonHTML, 'individual');
+        }
+
+        async function getOverallTeamReview() {
+            if (allFetchedEntries.length === 0) {
+                showMessage("目前沒有記錄可供總評。", "warning"); return;
+            }
+            const originalButtonHTML = `<span>✨ 獲取近期表現總評</span>`;
+            let recordsSummary = allFetchedEntries.slice(0, 15).map(e => 
+                `${e.teamMember} 於 ${e.entryDate} ${e.clockOutTime} 下班${e.notes ? ` (備註: ${e.notes.substring(0,20)})${e.notes.length > 20 ? '...' : ''}` : ''}`
+            ).join("； ");
+
+            if(allFetchedEntries.length > 15) recordsSummary += `...等共 ${allFetchedEntries.length} 筆記錄。`;
+
+            let promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。以下是團隊成員近期的下班打卡記錄摘要：「${recordsSummary}」。請根據這些記錄，用輕鬆幽默的鼠王風格，對團隊近期的整體辛勞程度做一個簡短總評（例如誰最晚走，平均下班時間如何等等），並給予一些打氣的話。請用繁體中文，並且總字數不超過120字。`;
+            
+            await callGeminiAPI(promptText, overallReviewButton, originalButtonHTML, 'overall');
+        }
+
+        async function fetchNoteSuggestions() {
+            const originalButtonHTML = `<span>💡 備註建議</span>`;
+            const promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默。請提供3-4個簡短的下班備註例句，用於記錄下班時的心情或事由。風格可以是有點抱怨工作、期待放鬆、或記錄特殊事項。例如：「終於搞定那個鬼Bug，閃人了！」、「今天提早開溜，鼠輩的快樂就是這麼樸實無華！」、「被客戶纏到現在，累癱。」。請用繁體中文，每個例句一行，不要有編號或引號。`;
+            await callGeminiAPI(promptText, getNoteSuggestionButton, originalButtonHTML, 'note');
+        }
+
+        async function fetchExcuse() {
+            const originalButtonHTML = `<span>👑 賜我下班神藉口！</span>`;
+            const promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。鼠王我今天想準時（或提早）下班，請賜我一個絕妙的下班藉口，要夠創意、夠幽默，最好讓老闆或同事聽了都無法反駁，甚至會心一笑！請用繁體中文，一句話就好，大約30-70字。`;
+            await callGeminiAPI(promptText, getExcuseButton, originalButtonHTML, 'excuse');
+        }
+
+
+        leaveForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const teamMember = leaveForm.teamMember.value;
+            const entryDateValue = entryDateInput.value; 
+            const clockOutTimeValue = clockOutTimeInput.value; 
+            const notesValue = notesInput.value.trim();
+            if (!entryDateValue) { showMessage("請選擇日期。", "warning"); return; }
+            if (!clockOutTimeValue) { showMessage("請輸入下班時間。", "warning"); return; }
+            addEntry(teamMember, entryDateValue, clockOutTimeValue, notesValue);
+        });
+
+        overallReviewButton.addEventListener('click', getOverallTeamReview);
+        getNoteSuggestionButton.addEventListener('click', fetchNoteSuggestions);
+        getExcuseButton.addEventListener('click', fetchExcuse); // Event listener for the new button
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setCurrentDateTime(); 
+            initializeFirebaseServices();
+            overallReviewButton.disabled = true; 
+        });
+    </script>
+</body>
+</html>

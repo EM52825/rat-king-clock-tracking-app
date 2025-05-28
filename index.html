@@ -210,438 +210,477 @@
         </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, deleteDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <script type="module">
+    // Firebase SDKs (Version 11.8.1)
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-app.js";
+    import {
+        getAuth,
+        signInAnonymously,
+        signInWithCustomToken,
+        onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-auth.js";
+    import {
+        getFirestore,
+        collection,
+        addDoc,
+        onSnapshot,
+        query,
+        orderBy,
+        serverTimestamp,
+        doc,
+        deleteDoc,
+        setLogLevel
+    } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-firestore.js";
+    // *** 新增：引入 Firebase Functions SDK ***
+    import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/11.8.1/firebase-functions.js";
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        document.getElementById('appIdDisplay').textContent = appId;
 
-        let app;
-        let auth;
-        let db;
-        let currentUserId = null; 
-        let clockOutCollectionRef;
-        let unsubscribeClockOutListener = null;
-        let allFetchedEntries = []; 
+    // --- Configuration ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyDwcwQ_MjTC9FeHwJYybqXwXkWe-m9kFss", // 請確認這是您 Firebase 專案的真實金鑰
+        authDomain: "rat-king-clock-tracking-app.firebaseapp.com",
+        projectId: "rat-king-clock-tracking-app",
+        storageBucket: "rat-king-clock-tracking-app.firebasestorage.app",
+        messagingSenderId: "823760126516",
+        appId: "1:823760126516:web:6ba1cdf5ee2829725d8061",
+        measurementId: "G-MVZZ1359XH"
+    };
 
-        const leaveForm = document.getElementById('leaveForm');
-        const entryDateInput = document.getElementById('entryDate');
-        const clockOutTimeInput = document.getElementById('clockOutTime');
-        const notesInput = document.getElementById('notes');
-        const refreshDateTimeButton = document.getElementById('refreshDateTimeButton');
-        const getNoteSuggestionButton = document.getElementById('getNoteSuggestionButton');
-        const getExcuseButton = document.getElementById('getExcuseButton'); // New button
-        const submitButton = document.getElementById('submitButton');
-        const leaveList = document.getElementById('leaveList');
-        const loadingEntries = document.getElementById('loadingEntries');
-        const noEntries = document.getElementById('noEntries');
-        const leaveTable = document.getElementById('leaveTable');
-        const messageArea = document.getElementById('messageArea');
-        const userIdDisplay = document.getElementById('userIdDisplay');
-        const overallReviewButton = document.getElementById('overallReviewButton');
+    const initialAuthToken = null;
+    const appId = firebaseConfig.appId;
 
-        const confirmationModal = document.getElementById('confirmationModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalMessage = document.getElementById('modalMessage');
-        const modalConfirmButton = document.getElementById('modalConfirmButton');
-        const modalCancelButton = document.getElementById('modalCancelButton');
-        let confirmActionCallback = null;
+    // --- Firebase Initialization ---
+    let app;
+    let auth;
+    let db;
+    let functionsService; // *** 新增：用於 Firebase Functions 服務 ***
 
-        const suggestionModal = document.getElementById('suggestionModal');
-        const suggestionModalTitle = document.getElementById('suggestionModalTitle');
-        const suggestionText = document.getElementById('suggestionText');
-        const suggestionLoading = document.getElementById('suggestionLoading');
-        const closeSuggestionButton = document.getElementById('closeSuggestionButton');
-        
-        function showMessage(message, type = 'success') {
-            messageArea.textContent = message;
-            messageArea.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'bg-yellow-100', 'text-yellow-700');
-            if (type === 'success') messageArea.classList.add('bg-green-100', 'text-green-700');
-            else if (type === 'error') messageArea.classList.add('bg-red-100', 'text-red-700');
-            else if (type === 'warning') messageArea.classList.add('bg-yellow-100', 'text-yellow-700');
-            messageArea.classList.remove('hidden');
-            setTimeout(() => messageArea.classList.add('hidden'), 5000);
+    let currentUserId = null;
+    let clockOutCollectionRef;
+    let unsubscribeClockOutListener = null;
+    let allFetchedEntries = [];
+
+    // --- UI Elements ---
+    const appIdDisplayElement = document.getElementById('appIdDisplay');
+    const userIdDisplayElement = document.getElementById('userIdDisplay');
+    if (appIdDisplayElement) appIdDisplayElement.textContent = appId;
+
+    const leaveForm = document.getElementById('leaveForm');
+    const entryDateInput = document.getElementById('entryDate');
+    const clockOutTimeInput = document.getElementById('clockOutTime');
+    const notesInput = document.getElementById('notes');
+    const refreshDateTimeButton = document.getElementById('refreshDateTimeButton');
+    const getNoteSuggestionButton = document.getElementById('getNoteSuggestionButton');
+    const getExcuseButton = document.getElementById('getExcuseButton');
+    const submitButton = document.getElementById('submitButton');
+    const leaveList = document.getElementById('leaveList');
+    const loadingEntries = document.getElementById('loadingEntries');
+    const noEntries = document.getElementById('noEntries');
+    const leaveTable = document.getElementById('leaveTable');
+    const messageArea = document.getElementById('messageArea');
+    const overallReviewButton = document.getElementById('overallReviewButton');
+
+    const confirmationModal = document.getElementById('confirmationModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const modalConfirmButton = document.getElementById('modalConfirmButton');
+    const modalCancelButton = document.getElementById('modalCancelButton');
+    let confirmActionCallback = null;
+
+    const suggestionModal = document.getElementById('suggestionModal');
+    const suggestionModalTitle = document.getElementById('suggestionModalTitle');
+    const suggestionText = document.getElementById('suggestionText');
+    const suggestionLoading = document.getElementById('suggestionLoading');
+    const closeSuggestionButton = document.getElementById('closeSuggestionButton');
+
+    // --- Helper Functions ---
+    function showMessage(message, type = 'success') {
+        if (!messageArea) return;
+        messageArea.textContent = message;
+        messageArea.classList.remove('hidden', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700', 'bg-yellow-100', 'text-yellow-700');
+        if (type === 'success') messageArea.classList.add('bg-green-100', 'text-green-700');
+        else if (type === 'error') messageArea.classList.add('bg-red-100', 'text-red-700');
+        else if (type === 'warning') messageArea.classList.add('bg-yellow-100', 'text-yellow-700');
+        messageArea.classList.remove('hidden');
+        setTimeout(() => messageArea.classList.add('hidden'), 5000);
+    }
+
+    function openConfirmationModal(title, message, onConfirm) {
+        if (!confirmationModal || !modalTitle || !modalMessage) return;
+        modalTitle.textContent = title;
+        modalMessage.textContent = message;
+        confirmActionCallback = onConfirm;
+        confirmationModal.style.display = 'block';
+    }
+
+    window.closeConfirmationModal = function() {
+        if (!confirmationModal) return;
+        confirmationModal.style.display = 'none';
+        confirmActionCallback = null;
+    }
+
+    if (modalCancelButton) modalCancelButton.onclick = window.closeConfirmationModal;
+    if (modalConfirmButton) modalConfirmButton.onclick = () => {
+        if (confirmActionCallback) confirmActionCallback();
+        window.closeConfirmationModal();
+    };
+    
+    function openSuggestionModal(modalType = 'individual') { 
+        if (!suggestionModal || !suggestionText || !suggestionLoading || !suggestionModalTitle || !closeSuggestionButton) return;
+        suggestionText.innerHTML = ''; 
+        suggestionLoading.style.display = 'block';
+        closeSuggestionButton.classList.remove('hidden'); 
+
+        if (modalType === 'overall') {
+            suggestionModalTitle.textContent = '✨ 鼠王近期表現總評 ✨';
+        } else if (modalType === 'note') {
+            suggestionModalTitle.textContent = '✨ 鼠王備註靈感 ✨';
+        } else if (modalType === 'excuse') { 
+            suggestionModalTitle.textContent = '✨ 鼠王脫逃密技 ✨';
+        } else { 
+            suggestionModalTitle.textContent = '✨ 鼠王給你的建議 ✨';
         }
+        suggestionModal.style.display = 'block';
+    }
 
-        function openConfirmationModal(title, message, onConfirm) {
-            modalTitle.textContent = title;
-            modalMessage.textContent = message;
-            confirmActionCallback = onConfirm;
-            confirmationModal.style.display = 'block';
-        }
+    window.closeSuggestionModal = function() {
+        if (!suggestionModal) return;
+        suggestionModal.style.display = 'none';
+    }
+    if (closeSuggestionButton) closeSuggestionButton.onclick = window.closeSuggestionModal;
 
-        window.closeConfirmationModal = function() {
-            confirmationModal.style.display = 'none';
-            confirmActionCallback = null;
-        }
+    window.onclick = (event) => { 
+        if (event.target == confirmationModal) window.closeConfirmationModal();
+        if (event.target == suggestionModal) window.closeSuggestionModal();
+    };
 
-        modalCancelButton.onclick = window.closeConfirmationModal;
-        modalConfirmButton.onclick = () => {
-            if (confirmActionCallback) confirmActionCallback();
-            window.closeConfirmationModal();
-        };
-        
-        function openSuggestionModal(modalType = 'individual') { 
-            suggestionText.innerHTML = ''; 
-            suggestionLoading.style.display = 'block';
-            closeSuggestionButton.classList.remove('hidden'); 
+    function setCurrentDateTime() {
+        if (!entryDateInput || !clockOutTimeInput) return;
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = (now.getMonth() + 1).toString().padStart(2, '0');
+        const day = now.getDate().toString().padStart(2, '0');
+        const hours = now.getHours().toString().padStart(2, '0');
+        const minutes = now.getMinutes().toString().padStart(2, '0');
 
-            if (modalType === 'overall') {
-                suggestionModalTitle.textContent = '✨ 鼠王近期表現總評 ✨';
-            } else if (modalType === 'note') {
-                suggestionModalTitle.textContent = '✨ 鼠王備註靈感 ✨';
-            } else if (modalType === 'excuse') { // New modal type
-                suggestionModalTitle.textContent = '✨ 鼠王脫逃密技 ✨';
-            } else { 
-                suggestionModalTitle.textContent = '✨ 鼠王給你的建議 ✨';
-            }
-            suggestionModal.style.display = 'block';
-        }
+        entryDateInput.value = `${year}-${month}-${day}`;
+        clockOutTimeInput.value = `${hours}:${minutes}`;
+    }
+    
+    if (refreshDateTimeButton) refreshDateTimeButton.addEventListener('click', setCurrentDateTime);
 
-        window.closeSuggestionModal = function() {
-            suggestionModal.style.display = 'none';
-        }
-        closeSuggestionButton.onclick = window.closeSuggestionModal;
+    // --- Firebase Core Functions ---
+    async function initializeFirebaseServices() {
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            functionsService = getFunctions(app, "us-central1"); // *** 初始化 Functions 服務，區域請與您部署的函式區域一致 ***
+            setLogLevel('debug');
 
-        window.onclick = (event) => { 
-            if (event.target == confirmationModal) window.closeConfirmationModal();
-            if (event.target == suggestionModal) window.closeSuggestionModal();
-        };
+            const collectionPath = `artifacts/${appId}/public/data/clockOutEntries`;
+            clockOutCollectionRef = collection(db, collectionPath);
+            console.log("使用 Firestore 集合:", collectionPath);
 
-        function setCurrentDateTime() {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = (now.getMonth() + 1).toString().padStart(2, '0');
-            const day = now.getDate().toString().padStart(2, '0');
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-
-            entryDateInput.value = `${year}-${month}-${day}`;
-            clockOutTimeInput.value = `${hours}:${minutes}`;
-        }
-        
-        refreshDateTimeButton.addEventListener('click', setCurrentDateTime);
-
-        async function initializeFirebaseServices() {
-            try {
-                if (Object.keys(firebaseConfig).length === 0) {
-                    showMessage("Firebase 設定缺失，應用程式無法連接到資料庫。", "error");
-                    console.error("Firebase configuration is missing.");
-                    loadingEntries.textContent = "錯誤：Firebase 設定缺失。";
-                    return;
-                }
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                setLogLevel('debug'); 
-                const collectionPath = `artifacts/${appId}/public/data/clockOutEntries`; 
-                clockOutCollectionRef = collection(db, collectionPath);
-                console.log("使用 Firestore 集合:", collectionPath);
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        currentUserId = user.uid;
-                        userIdDisplay.textContent = currentUserId;
-                        console.log("用戶已通過 UID 驗證:", currentUserId);
-                        fetchAndDisplayEntries();
-                    } else {
-                        currentUserId = crypto.randomUUID(); 
-                        userIdDisplay.textContent = `${currentUserId} (匿名)`;
-                        console.log("用戶未經驗證，使用匿名 ID:", currentUserId);
-                        if (initialAuthToken) {
-                            signInWithCustomToken(auth, initialAuthToken)
-                                .catch((error) => {
-                                    console.error("使用自訂令牌登入時發生錯誤:", error);
-                                    signInAnonymously(auth).catch(err => console.error("令牌失敗後匿名登入時發生錯誤:", err));
-                                });
-                        } else {
-                            signInAnonymously(auth).catch(err => console.error("匿名登入時發生錯誤:", err));
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error("初始化 Firebase 時發生錯誤:", error);
-                showMessage("初始化應用程式服務時發生錯誤。請稍後再試。", "error");
-                loadingEntries.textContent = "初始化錯誤，請檢查控制台。";
-            }
-        }
-
-        async function addEntry(teamMember, entryDate, clockOutTime, notes) {
-            if (!db || !clockOutCollectionRef) {
-                showMessage("資料庫未初始化，無法新增記錄。", "error"); return;
-            }
-            if (!currentUserId) {
-                showMessage("用戶未經驗證，無法新增記錄。", "error"); return;
-            }
-            submitButton.disabled = true;
-            submitButton.classList.add('button-loading');
-            if (!submitButton.dataset.originalContent) {
-                submitButton.dataset.originalContent = submitButton.innerHTML;
-            }
-            submitButton.innerHTML = `<div class="loading-spinner-small"></div><span>記錄中...</span>`;
-
-            try {
-                const newEntry = { teamMember, entryDate, clockOutTime, notes, createdAt: serverTimestamp(), addedBy: currentUserId };
-                await addDoc(clockOutCollectionRef, newEntry);
-                showMessage("下班時間已成功記錄！", "success");
-                leaveForm.reset(); 
-                setCurrentDateTime(); 
-            } catch (error) {
-                console.error("新增下班時間記錄時發生錯誤:", error);
-                showMessage("新增下班時間記錄失敗。請再試一次。" + error.message, "error");
-            } finally {
-                submitButton.disabled = false;
-                submitButton.classList.remove('button-loading');
-                submitButton.innerHTML = submitButton.dataset.originalContent || `<span>記錄時間</span>`;
-            }
-        }
-        
-        function fetchAndDisplayEntries() {
-            if (!db || !clockOutCollectionRef) {
-                console.error("Firestore not initialized in fetchAndDisplayEntries");
-                loadingEntries.classList.remove('hidden');
-                loadingEntries.textContent = "資料庫連接尚未就緒。"; return;
-            }
-            if (!currentUserId) {
-                console.warn("用戶尚未驗證，延遲獲取。"); return;
-            }
-
-            loadingEntries.classList.remove('hidden');
-            noEntries.classList.add('hidden');
-            leaveTable.classList.add('hidden');
-            leaveList.innerHTML = ''; 
-
-            const q = query(clockOutCollectionRef, orderBy("entryDate", "desc"));
-
-            if (unsubscribeClockOutListener) unsubscribeClockOutListener();
-
-            unsubscribeClockOutListener = onSnapshot(q, (querySnapshot) => {
-                loadingEntries.classList.add('hidden');
-                allFetchedEntries = []; 
-                querySnapshot.forEach((doc) => {
-                    allFetchedEntries.push({ id: doc.id, ...doc.data() });
-                });
-
-                allFetchedEntries.sort((a, b) => {
-                    if (a.entryDate > b.entryDate) return -1; if (a.entryDate < b.entryDate) return 1;
-                    if (a.clockOutTime && b.clockOutTime) { if (a.clockOutTime > b.clockOutTime) return -1; if (a.clockOutTime < b.clockOutTime) return 1; }
-                    else if (a.clockOutTime) return -1; else if (b.clockOutTime) return 1;  
-                    if (a.createdAt && b.createdAt) return b.createdAt.toMillis() - a.createdAt.toMillis();
-                    else if (a.createdAt) return -1; else if (b.createdAt) return 1;
-                    return 0;
-                });
-
-                if (allFetchedEntries.length === 0) {
-                    noEntries.classList.remove('hidden');
-                    leaveTable.classList.add('hidden');
-                    overallReviewButton.disabled = true; 
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    currentUserId = user.uid;
+                    if (userIdDisplayElement) userIdDisplayElement.textContent = currentUserId;
+                    console.log("用戶已通過 UID 驗證:", currentUserId);
+                    fetchAndDisplayEntries();
                 } else {
-                    noEntries.classList.add('hidden');
-                    leaveTable.classList.remove('hidden');
-                    renderEntries(allFetchedEntries);
-                    overallReviewButton.disabled = false;
-                }
-            }, (error) => {
-                console.error("獲取下班時間記錄時發生錯誤:", error);
-                showMessage("獲取下班時間記錄時發生錯誤: " + error.message, "error");
-                loadingEntries.classList.add('hidden');
-                noEntries.textContent = "載入記錄時發生錯誤。";
-                noEntries.classList.remove('hidden');
-                overallReviewButton.disabled = true;
-            });
-            console.log("已附加新的 Firestore 監聽器。");
-        }
-
-        function renderEntries(entriesToRender) {
-            leaveList.innerHTML = ''; 
-            entriesToRender.forEach(entry => {
-                const row = leaveList.insertRow();
-                row.insertCell().textContent = entry.entryDate; 
-                row.insertCell().textContent = entry.teamMember;
-                row.insertCell().textContent = entry.clockOutTime || '-'; 
-                
-                const notesCell = row.insertCell();
-                notesCell.textContent = entry.notes || '-';
-                notesCell.classList.add('text-sm', 'text-gray-500', 'max-w-[150px]'); 
-                if (entry.notes && entry.notes.length > 25) { 
-                    notesCell.title = entry.notes; 
-                    notesCell.textContent = entry.notes.substring(0, 25) + '...';
-                } else {
-                     notesCell.classList.add('truncate');
-                }
-                
-                const suggestionCell = row.insertCell();
-                const suggestionButtonId = `suggestBtn-${entry.id}`;
-                const suggestionButton = document.createElement('button');
-                suggestionButton.id = suggestionButtonId;
-                suggestionButton.innerHTML = `<span>💡</span>`;
-                suggestionButton.title = "獲取鼠王建議";
-                suggestionButton.classList.add('p-1', 'rounded-md', 'bg-yellow-400', 'hover:bg-yellow-500', 'text-white', 'text-xs', 'flex', 'items-center', 'justify-center');
-                suggestionButton.onclick = () => getClockOutSuggestion(entry.teamMember, entry.entryDate, entry.clockOutTime, entry.notes || '', suggestionButtonId);
-                suggestionCell.appendChild(suggestionButton);
-
-                const actionsCell = row.insertCell();
-                const deleteButton = document.createElement('button');
-                deleteButton.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500 hover:text-red-700" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
-                deleteButton.classList.add('p-1', 'rounded');
-                deleteButton.title = "刪除記錄";
-                deleteButton.onclick = () => openConfirmationModal('刪除下班記錄', `您確定要刪除 ${entry.teamMember} 於 ${entry.entryDate} 的下班記錄嗎？`, () => deleteEntry(entry.id));
-                actionsCell.appendChild(deleteButton);
-            });
-        }
-
-        async function deleteEntry(entryId) {
-            if (!db || !clockOutCollectionRef) {
-                showMessage("資料庫未初始化，無法刪除記錄。", "error"); return;
-            }
-            try {
-                const entryDocRef = doc(clockOutCollectionRef, entryId);
-                await deleteDoc(entryDocRef);
-                showMessage("記錄已成功刪除。", "success");
-            } catch (error) {
-                console.error("刪除記錄時發生錯誤:", error);
-                showMessage("刪除記錄失敗: " + error.message, "error");
-            }
-        }
-
-        async function callGeminiAPI(promptText, buttonElement, originalButtonHTML, modalType = 'individual') {
-            if (buttonElement) {
-                buttonElement.disabled = true;
-                buttonElement.classList.add('button-loading');
-                if (!buttonElement.dataset.originalContent) {
-                     buttonElement.dataset.originalContent = originalButtonHTML || buttonElement.innerHTML;
-                }
-                buttonElement.innerHTML = `<div class="loading-spinner-small"></div><span>思考中...</span>`;
-            }
-            
-            openSuggestionModal(modalType);
-
-            console.log("Gemini Prompt:", promptText);
-            try {
-                let chatHistory = [{ role: "user", parts: [{ text: promptText }] }];
-                const payload = { contents: chatHistory };
-                const apiKey = ""; 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-                
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    console.error("Gemini API Error Response:", errorData);
-                    throw new Error(`API 請求失敗，狀態碼：${response.status}. ${errorData?.error?.message || ''}`);
-                }
-                const result = await response.json();
-                console.log("Gemini API Raw Result:", result);
-
-                if (result.candidates && result.candidates[0]?.content?.parts?.[0]?.text) {
-                    const generatedText = result.candidates[0].content.parts[0].text;
-                    if (modalType === 'note') {
-                        suggestionText.innerHTML = ''; 
-                        const suggestions = generatedText.split('\n').filter(s => s.trim() !== '');
-                        if (suggestions.length > 0) {
-                            suggestions.forEach(sText => {
-                                const suggItem = document.createElement('button');
-                                suggItem.textContent = sText;
-                                suggItem.classList.add('note-suggestion-item');
-                                suggItem.onclick = () => {
-                                    notesInput.value = sText;
-                                    closeSuggestionModal();
-                                };
-                                suggestionText.appendChild(suggItem);
+                    currentUserId = crypto.randomUUID();
+                    if (userIdDisplayElement) userIdDisplayElement.textContent = `${currentUserId} (匿名)`;
+                    console.log("用戶未經驗證，使用匿名 ID:", currentUserId);
+                    if (initialAuthToken) {
+                        signInWithCustomToken(auth, initialAuthToken)
+                            .catch((error) => {
+                                console.error("使用自訂令牌登入時發生錯誤:", error);
+                                signInAnonymously(auth).catch(err => console.error("令牌失敗後匿名登入時發生錯誤:", err));
                             });
-                        } else {
-                             suggestionText.textContent = "鼠王暫時沒有備註靈感，請鼠王大人自行發揮～";
-                        }
-                    } else { // For 'individual', 'overall', 'excuse'
-                        suggestionText.textContent = generatedText;
+                    } else {
+                        signInAnonymously(auth).catch(err => console.error("匿名登入時發生錯誤:", err));
                     }
-                } else {
-                    console.error("Gemini API - 意外的回應結構:", result);
-                    suggestionText.textContent = "鼠王今天詞窮了，稍後再試吧！";
                 }
-            } catch (error) {
-                console.error("呼叫 Gemini API 時發生錯誤:", error);
-                suggestionText.textContent = "哎呀！鼠王建議系統暫時出了點小問題，請稍後再試。";
-                showMessage("無法獲取鼠王回覆：" + error.message, "error");
-            } finally {
-                suggestionLoading.style.display = 'none';
-                if (buttonElement) {
-                    buttonElement.disabled = false;
-                    buttonElement.classList.remove('button-loading');
-                    buttonElement.innerHTML = buttonElement.dataset.originalContent || originalButtonHTML; 
-                }
-            }
+            });
+        } catch (error) {
+            console.error("初始化 Firebase 時發生錯誤:", error);
+            showMessage("初始化應用程式服務時發生錯誤。請稍後再試。", "error");
+            if (loadingEntries) loadingEntries.textContent = "初始化錯誤，請檢查控制台。";
+        }
+    }
+
+    async function addEntry(teamMember, entryDate, clockOutTime, notes) {
+        if (!db || !clockOutCollectionRef) {
+            showMessage("資料庫未初始化，無法新增記錄。", "error"); return;
+        }
+        if (!currentUserId) {
+            showMessage("用戶未經驗證，無法新增記錄。", "error"); return;
+        }
+        if (!submitButton) return;
+        submitButton.disabled = true;
+        submitButton.classList.add('button-loading');
+        if (!submitButton.dataset.originalContent) {
+            submitButton.dataset.originalContent = submitButton.innerHTML;
+        }
+        submitButton.innerHTML = `<div class="loading-spinner-small"></div><span>記錄中...</span>`;
+
+        try {
+            const newEntry = { teamMember, entryDate, clockOutTime, notes, createdAt: serverTimestamp(), addedBy: currentUserId };
+            await addDoc(clockOutCollectionRef, newEntry);
+            showMessage("下班時間已成功記錄！", "success");
+            if (leaveForm) leaveForm.reset();
+            setCurrentDateTime();
+        } catch (error) {
+            console.error("新增下班時間記錄時發生錯誤:", error);
+            showMessage("新增下班時間記錄失敗。請再試一次。" + error.message, "error");
+        } finally {
+            submitButton.disabled = false;
+            submitButton.classList.remove('button-loading');
+            submitButton.innerHTML = submitButton.dataset.originalContent || `<span>記錄時間</span>`;
+        }
+    }
+
+    function fetchAndDisplayEntries() {
+        if (!db || !clockOutCollectionRef || !loadingEntries || !noEntries || !leaveTable || !leaveList || !overallReviewButton) {
+            console.error("一個或多個 UI 元素未能在 fetchAndDisplayEntries 中找到。");
+            return;
+        }
+        if (!currentUserId) {
+            console.warn("用戶尚未驗證，延遲獲取。"); return;
         }
 
-        async function getClockOutSuggestion(teamMember, entryDate, clockOutTime, notes, buttonId) {
-            const suggestionButton = document.getElementById(buttonId);
-            const originalButtonHTML = `<span>💡</span>`; 
-            let promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。團隊成員 ${teamMember} 剛剛在 ${entryDate} 的 ${clockOutTime} 打卡下班。`;
-            if (notes && notes.trim() !== '') promptText += `他/她的下班備註是：「${notes}」。`;
-            else promptText += `他/她沒有留下備註。`;
-            promptText += `請根據這些資訊，用輕鬆幽默的鼠王風格，給 ${teamMember} 一句簡短的下班後的建議或打氣的話。請用繁體中文，並且不超過60個字。`;
-            
-            await callGeminiAPI(promptText, suggestionButton, originalButtonHTML, 'individual');
-        }
+        loadingEntries.classList.remove('hidden');
+        noEntries.classList.add('hidden');
+        leaveTable.classList.add('hidden');
+        leaveList.innerHTML = '';
 
-        async function getOverallTeamReview() {
+        const q = query(clockOutCollectionRef, orderBy("entryDate", "desc"));
+
+        if (unsubscribeClockOutListener) unsubscribeClockOutListener();
+
+        unsubscribeClockOutListener = onSnapshot(q, (querySnapshot) => {
+            loadingEntries.classList.add('hidden');
+            allFetchedEntries = [];
+            querySnapshot.forEach((doc) => {
+                allFetchedEntries.push({ id: doc.id, ...doc.data() });
+            });
+
+            allFetchedEntries.sort((a, b) => {
+                if (a.entryDate > b.entryDate) return -1; if (a.entryDate < b.entryDate) return 1;
+                if (a.clockOutTime && b.clockOutTime) { if (a.clockOutTime > b.clockOutTime) return -1; if (a.clockOutTime < b.clockOutTime) return 1; }
+                else if (a.clockOutTime) return -1; else if (b.clockOutTime) return 1;
+                if (a.createdAt && b.createdAt) return b.createdAt.toMillis() - a.createdAt.toMillis();
+                else if (a.createdAt) return -1; else if (b.createdAt) return 1;
+                return 0;
+            });
+
             if (allFetchedEntries.length === 0) {
-                showMessage("目前沒有記錄可供總評。", "warning"); return;
+                noEntries.classList.remove('hidden');
+                leaveTable.classList.add('hidden');
+                overallReviewButton.disabled = true;
+            } else {
+                noEntries.classList.add('hidden');
+                leaveTable.classList.remove('hidden');
+                renderEntries(allFetchedEntries);
+                overallReviewButton.disabled = false;
             }
-            const originalButtonHTML = `<span>✨ 獲取近期表現總評</span>`;
-            let recordsSummary = allFetchedEntries.slice(0, 15).map(e => 
-                `${e.teamMember} 於 ${e.entryDate} ${e.clockOutTime} 下班${e.notes ? ` (備註: ${e.notes.substring(0,20)})${e.notes.length > 20 ? '...' : ''}` : ''}`
-            ).join("； ");
-
-            if(allFetchedEntries.length > 15) recordsSummary += `...等共 ${allFetchedEntries.length} 筆記錄。`;
-
-            let promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。以下是團隊成員近期的下班打卡記錄摘要：「${recordsSummary}」。請根據這些記錄，用輕鬆幽默的鼠王風格，對團隊近期的整體辛勞程度做一個簡短總評（例如誰最晚走，平均下班時間如何等等），並給予一些打氣的話。請用繁體中文，並且總字數不超過120字。`;
-            
-            await callGeminiAPI(promptText, overallReviewButton, originalButtonHTML, 'overall');
-        }
-
-        async function fetchNoteSuggestions() {
-            const originalButtonHTML = `<span>💡 備註建議</span>`;
-            const promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默。請提供3-4個簡短的下班備註例句，用於記錄下班時的心情或事由。風格可以是有點抱怨工作、期待放鬆、或記錄特殊事項。例如：「終於搞定那個鬼Bug，閃人了！」、「今天提早開溜，鼠輩的快樂就是這麼樸實無華！」、「被客戶纏到現在，累癱。」。請用繁體中文，每個例句一行，不要有編號或引號。`;
-            await callGeminiAPI(promptText, getNoteSuggestionButton, originalButtonHTML, 'note');
-        }
-
-        async function fetchExcuse() {
-            const originalButtonHTML = `<span>👑 賜我下班神藉口！</span>`;
-            const promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。鼠王我今天想準時（或提早）下班，請賜我一個絕妙的下班藉口，要夠創意、夠幽默，最好讓老闆或同事聽了都無法反駁，甚至會心一笑！請用繁體中文，一句話就好，大約30-70字。`;
-            await callGeminiAPI(promptText, getExcuseButton, originalButtonHTML, 'excuse');
-        }
-
-
-        leaveForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const teamMember = leaveForm.teamMember.value;
-            const entryDateValue = entryDateInput.value; 
-            const clockOutTimeValue = clockOutTimeInput.value; 
-            const notesValue = notesInput.value.trim();
-            if (!entryDateValue) { showMessage("請選擇日期。", "warning"); return; }
-            if (!clockOutTimeValue) { showMessage("請輸入下班時間。", "warning"); return; }
-            addEntry(teamMember, entryDateValue, clockOutTimeValue, notesValue);
+        }, (error) => {
+            console.error("獲取下班時間記錄時發生錯誤:", error);
+            showMessage("獲取下班時間記錄時發生錯誤: " + error.message, "error");
+            loadingEntries.classList.add('hidden');
+            noEntries.textContent = "載入記錄時發生錯誤。";
+            noEntries.classList.remove('hidden');
+            overallReviewButton.disabled = true;
         });
+        console.log("已附加新的 Firestore 監聽器。");
+    }
 
-        overallReviewButton.addEventListener('click', getOverallTeamReview);
-        getNoteSuggestionButton.addEventListener('click', fetchNoteSuggestions);
-        getExcuseButton.addEventListener('click', fetchExcuse); // Event listener for the new button
+    function renderEntries(entriesToRender) {
+        if(!leaveList) return;
+        leaveList.innerHTML = '';
+        entriesToRender.forEach(entry => {
+            const row = leaveList.insertRow();
+            row.insertCell().textContent = entry.entryDate;
+            row.insertCell().textContent = entry.teamMember;
+            row.insertCell().textContent = entry.clockOutTime || '-';
 
-        document.addEventListener('DOMContentLoaded', () => {
-            setCurrentDateTime(); 
-            initializeFirebaseServices();
-            overallReviewButton.disabled = true; 
+            const notesCell = row.insertCell();
+            notesCell.textContent = entry.notes || '-';
+            notesCell.classList.add('text-sm', 'text-gray-500', 'max-w-[150px]');
+            if (entry.notes && entry.notes.length > 25) {
+                notesCell.title = entry.notes;
+                notesCell.textContent = entry.notes.substring(0, 25) + '...';
+            } else {
+                notesCell.classList.add('truncate');
+            }
+
+            const suggestionCell = row.insertCell();
+            const suggestionButtonId = `suggestBtn-${entry.id}`;
+            const suggestionButtonElement = document.createElement('button');
+            suggestionButtonElement.id = suggestionButtonId;
+            suggestionButtonElement.innerHTML = `<span>💡</span>`;
+            suggestionButtonElement.title = "獲取鼠王建議";
+            suggestionButtonElement.classList.add('p-1', 'rounded-md', 'bg-yellow-400', 'hover:bg-yellow-500', 'text-white', 'text-xs', 'flex', 'items-center', 'justify-center');
+            suggestionButtonElement.onclick = () => getClockOutSuggestion(entry.teamMember, entry.entryDate, entry.clockOutTime, entry.notes || '', suggestionButtonId);
+            suggestionCell.appendChild(suggestionButtonElement);
+
+            const actionsCell = row.insertCell();
+            const deleteButtonElement = document.createElement('button');
+            deleteButtonElement.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-500 hover:text-red-700" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>`;
+            deleteButtonElement.classList.add('p-1', 'rounded');
+            deleteButtonElement.title = "刪除記錄";
+            deleteButtonElement.onclick = () => openConfirmationModal('刪除下班記錄', `您確定要刪除 ${entry.teamMember} 於 ${entry.entryDate} 的下班記錄嗎？`, () => deleteEntry(entry.id));
+            actionsCell.appendChild(deleteButtonElement);
         });
-    </script>
+    }
+
+    async function deleteEntry(entryId) {
+        if (!db || !clockOutCollectionRef) {
+            showMessage("資料庫未初始化，無法刪除記錄。", "error"); return;
+        }
+        try {
+            const entryDocRef = doc(clockOutCollectionRef, entryId);
+            await deleteDoc(entryDocRef);
+            showMessage("記錄已成功刪除。", "success");
+        } catch (error) {
+            console.error("刪除記錄時發生錯誤:", error);
+            showMessage("刪除記錄失敗: " + error.message, "error");
+        }
+    }
+
+    // --- Gemini API Call (Now through Firebase Functions) ---
+    async function callGeminiAPI(promptText, buttonElement, originalButtonHTML, modalType = 'individual') {
+        if (buttonElement) {
+            buttonElement.disabled = true;
+            buttonElement.classList.add('button-loading');
+            if (!buttonElement.dataset.originalContent) {
+                buttonElement.dataset.originalContent = originalButtonHTML || buttonElement.innerHTML;
+            }
+            buttonElement.innerHTML = `<div class="loading-spinner-small"></div><span>思考中...</span>`;
+        }
+        openSuggestionModal(modalType);
+
+        if (!functionsService) { // *** 檢查 Functions 服務是否已初始化 ***
+            console.error("Firebase Functions service is not initialized.");
+            if(suggestionText) suggestionText.textContent = "錯誤：後端 AI 服務未初始化。";
+            if(suggestionLoading) suggestionLoading.style.display = 'none';
+            if (buttonElement) {
+                buttonElement.disabled = false;
+                buttonElement.classList.remove('button-loading');
+                buttonElement.innerHTML = buttonElement.dataset.originalContent || originalButtonHTML;
+            }
+            return;
+        }
+
+        // *** 呼叫您的雲端函式 ***
+        const callGeminiRatKingFunction = httpsCallable(functionsService, 'callGeminiRatKing');
+        console.log("Calling backend function 'callGeminiRatKing' with prompt:", promptText);
+
+        try {
+            // 將 promptText 作為 data 傳遞給後端函式
+            const result = await callGeminiRatKingFunction({ promptText: promptText });
+            // 後端函式回傳的資料在 result.data.text (根據我們後端函式的設計)
+            const generatedText = result.data.text;
+
+            if (modalType === 'note') {
+                if(suggestionText) suggestionText.innerHTML = '';
+                const suggestions = generatedText.split('\n').filter(s => s.trim() !== '');
+                if (suggestions.length > 0) {
+                    suggestions.forEach(sText => {
+                        const suggItem = document.createElement('button');
+                        suggItem.textContent = sText;
+                        suggItem.classList.add('note-suggestion-item');
+                        suggItem.onclick = () => {
+                            if(notesInput) notesInput.value = sText;
+                            window.closeSuggestionModal();
+                        };
+                        if(suggestionText) suggestionText.appendChild(suggItem);
+                    });
+                } else {
+                     if(suggestionText) suggestionText.textContent = "鼠王暫時沒有備註靈感，請鼠王大人自行發揮～";
+                }
+            } else {
+                if(suggestionText) suggestionText.textContent = generatedText;
+            }
+        } catch (error) {
+            console.error("呼叫後端 AI 服務時發生錯誤:", error);
+            if(suggestionText) suggestionText.textContent = `哎呀！鼠王 AI 服務出錯了：${error.message}`;
+            showMessage("無法獲取鼠王回覆：" + error.message, "error");
+        } finally {
+            if(suggestionLoading) suggestionLoading.style.display = 'none';
+            if (buttonElement) {
+                buttonElement.disabled = false;
+                buttonElement.classList.remove('button-loading');
+                buttonElement.innerHTML = buttonElement.dataset.originalContent || originalButtonHTML;
+            }
+        }
+    }
+
+    async function getClockOutSuggestion(teamMember, entryDate, clockOutTime, notes, buttonId) {
+        const suggestionButtonElement = document.getElementById(buttonId);
+        const originalButtonHTML = `<span>💡</span>`;
+        let promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。團隊成員 ${teamMember} 剛剛在 ${entryDate} 的 ${clockOutTime} 打卡下班。`;
+        if (notes && notes.trim() !== '') promptText += `他/她的下班備註是：「${notes}」。`;
+        else promptText += `他/她沒有留下備註。`;
+        promptText += `請根據這些資訊，用輕鬆幽默的鼠王風格，給 ${teamMember} 一句簡短的下班後的建議或打氣的話。請用繁體中文，並且不超過60個字。`;
+        await callGeminiAPI(promptText, suggestionButtonElement, originalButtonHTML, 'individual');
+    }
+
+    async function getOverallTeamReview() {
+        if (!overallReviewButton) return;
+        if (allFetchedEntries.length === 0) {
+            showMessage("目前沒有記錄可供總評。", "warning"); return;
+        }
+        const originalButtonHTML = `<span>✨ 獲取近期表現總評</span>`;
+        let recordsSummary = allFetchedEntries.slice(0, 15).map(e =>
+            `${e.teamMember} 於 ${e.entryDate} ${e.clockOutTime} 下班${e.notes ? ` (備註: ${e.notes.substring(0, 20)})${e.notes.length > 20 ? '...' : ''}` : ''}`
+        ).join("； ");
+
+        if (allFetchedEntries.length > 15) recordsSummary += `...等共 ${allFetchedEntries.length} 筆記錄。`;
+
+        let promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。以下是團隊成員近期的下班打卡記錄摘要：「${recordsSummary}」。請根據這些記錄，用輕鬆幽默的鼠王風格，對團隊近期的整體辛勞程度做一個簡短總評（例如誰最晚走，平均下班時間如何等等），並給予一些打氣的話。請用繁體中文，並且總字數不超過120字。`;
+        await callGeminiAPI(promptText, overallReviewButton, originalButtonHTML, 'overall');
+    }
+
+    async function fetchNoteSuggestions() {
+        if (!getNoteSuggestionButton) return;
+        const originalButtonHTML = `<span>💡 備註建議</span>`;
+        const promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默。請提供3-4個簡短的下班備註例句，用於記錄下班時的心情或事由。風格可以是有點抱怨工作、期待放鬆、或記錄特殊事項。例如：「終於搞定那個鬼Bug，閃人了！」、「今天提早開溜，鼠輩的快樂就是這麼樸實無華！」、「被客戶纏到現在，累癱。」。請用繁體中文，每個例句一行，不要有編號或引號。`;
+        await callGeminiAPI(promptText, getNoteSuggestionButton, originalButtonHTML, 'note');
+    }
+
+    async function fetchExcuse() {
+        if (!getExcuseButton) return;
+        const originalButtonHTML = `<span>👑 賜我下班神藉口！</span>`;
+        const promptText = `你是「四大鼠王下班準備」App 的 AI 助手，風格風趣幽默，稱呼使用者為「鼠王」。鼠王我今天想準時（或提早）下班，請賜我一個絕妙的下班藉口，要夠創意、夠幽默，最好讓老闆或同事聽了都無法反駁，甚至會心一笑！請用繁體中文，一句話就好，大約30-70字。`;
+        await callGeminiAPI(promptText, getExcuseButton, originalButtonHTML, 'excuse');
+    }
+
+    // --- Event Listeners ---
+    if (leaveForm) leaveForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!leaveForm.teamMember || !entryDateInput || !clockOutTimeInput || !notesInput) return;
+        const teamMember = leaveForm.teamMember.value;
+        const entryDateValue = entryDateInput.value;
+        const clockOutTimeValue = clockOutTimeInput.value;
+        const notesValue = notesInput.value.trim();
+        if (!entryDateValue) { showMessage("請選擇日期。", "warning"); return; }
+        if (!clockOutTimeValue) { showMessage("請輸入下班時間。", "warning"); return; }
+        addEntry(teamMember, entryDateValue, clockOutTimeValue, notesValue);
+    });
+
+    if (overallReviewButton) overallReviewButton.addEventListener('click', getOverallTeamReview);
+    if (getNoteSuggestionButton) getNoteSuggestionButton.addEventListener('click', fetchNoteSuggestions);
+    if (getExcuseButton) getExcuseButton.addEventListener('click', fetchExcuse);
+
+    // --- Initial Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+        setCurrentDateTime();
+        initializeFirebaseServices(); // 初始化 Firebase，現在也會初始化 Functions 服務
+        if (overallReviewButton) overallReviewButton.disabled = true;
+    });
+
+</script> 
 </body>
 </html>
